@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OPERATION 360°: SAVE MATH CITY</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Audio Toggle & Top Bar -->
+  <header class="app-header">
+    <div class="logo-group">
+      <span class="city-badge">🏙️ MATH CITY HQ</span>
+      <h1 class="game-title">OPERATION 360°</h1>
+    </div>
+    <div class="header-controls">
+      <button id="sound-toggle-btn" class="icon-btn" aria-label="Toggle Sound">
+        <span id="sound-icon">🔊</span> <span id="sound-text" class="btn-text-responsive">SOUND ON</span>
+      </button>
+      <button id="report-shortcut-btn" class="btn btn-secondary hidden">
+        📊 REPORT
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main id="app-container" class="app-container">
+
+    <!-- 1. OPENING CUTSCENE SCREEN -->
+    <section id="screen-cutscene" class="screen active">
+      <div class="cutscene-card">
+        <div class="warning-banner">
+          <span class="alert-pulse">⚠️</span>
+          <h2>SYSTEM WARNING!</h2>
+          <span class="alert-pulse">⚠️</span>
+        </div>
+        <div class="cutscene-city-visual">
+          <div class="city-skyline">
+            <div class="building b1"></div>
+            <div class="building b2"></div>
+            <div class="core-tower">
+              <div class="core-ring pulsing-core">
+                <span class="core-text">360° CORE</span>
+              </div>
+            </div>
+            <div class="building b3"></div>
+            <div class="building b4"></div>
+          </div>
+          <div class="glitch-overlay"></div>
+        </div>
+        <div class="dialogue-box">
+          <p class="dialogue-text">"Math City's data system has been damaged!"</p>
+          <p class="dialogue-text">"All pie charts have lost their sectors."</p>
+          <p class="dialogue-highlight">"Agent 360, restore the missing data before the 360° Core shuts down!"</p>
+        </div>
+        <button id="btn-start-mission" class="btn btn-primary btn-large">
+          ⚡ START MISSION
+        </button>
+      </div>
+    </section>
+
+    <!-- 2. PLAYER NAME SCREEN -->
+    <section id="screen-name" class="screen hidden">
+      <div class="card name-card">
+        <div class="pibot-avatar-large">
+          <svg class="pibot-svg" viewBox="0 0 100 100">
+            <!-- Pi-Bot SVG Head & Body -->
+            <rect x="25" y="25" width="50" height="40" rx="10" fill="#3b82f6" stroke="#1d4ed8" stroke-width="3"/>
+            <rect x="32" y="32" width="36" height="22" rx="5" fill="#0f172a"/>
+            <circle cx="42" cy="43" r="4" fill="#38bdf8" class="eye-glow"/>
+            <circle cx="58" cy="43" r="4" fill="#38bdf8" class="eye-glow"/>
+            <path d="M 42 50 Q 50 54 58 50" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+            <rect x="47" y="12" width="6" height="13" fill="#64748b"/>
+            <circle cx="50" cy="10" r="5" fill="#ef4444" class="antenna-glow"/>
+            <path d="M 30 65 L 70 65 L 65 85 L 35 85 Z" fill="#2563eb"/>
+            <circle cx="50" cy="75" r="5" fill="#fbbf24"/>
+          </svg>
+        </div>
+        <h2>IDENTIFICATION REQUIRED</h2>
+        <p class="subtitle">What is your Agent Name?</p>
+
+        <form id="name-form" class="name-form" onsubmit="return false;">
+          <input type="text" id="agent-name-input" class="text-input" placeholder="Enter Agent Name..." maxlength="15" required autocomplete="off">
+          <button type="submit" id="btn-confirm-name" class="btn btn-success btn-large">
+            CONFIRM AGENT ID 🚀
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 3. MISSION MAP SCREEN -->
+    <section id="screen-map" class="screen hidden">
+      <div class="map-header">
+        <div class="welcome-banner">
+          <h2>Welcome, Agent <span id="map-agent-name" class="highlight-name">360</span>!</h2>
+          <p>Select an unlocked station to repair Math City's data grid.</p>
+        </div>
+      </div>
+
+      <!-- Dashboard Bar -->
+      <div class="dashboard-bar">
+        <div class="dash-item">
+          <span class="dash-label">AGENT</span>
+          <span id="dash-agent-name" class="dash-val">---</span>
+        </div>
+        <div class="dash-item">
+          <span class="dash-label">SCORE</span>
+          <span id="dash-score" class="dash-val">0</span>
+        </div>
+        <div class="dash-item">
+          <span class="dash-label">LIVES</span>
+          <div id="dash-lives" class="dash-lives-container">
+            <span class="heart">❤️</span><span class="heart">❤️</span><span class="heart">❤️</span><span class="heart">❤️</span><span class="heart">❤️</span>
+          </div>
+        </div>
+        <div class="dash-item">
+          <span class="dash-label">STARS</span>
+          <span id="dash-stars" class="dash-val">0 / 4 ⭐</span>
+        </div>
+      </div>
+
+      <!-- Map Locations Grid -->
+      <div class="map-grid">
+        <!-- Mission 1 Card -->
+        <div id="map-m1" class="map-card unlocked" data-mission="1">
+          <div class="card-status-badge badge-unlocked">AVAILABLE</div>
+          <div class="card-icon">📐</div>
+          <h3>Mission 1</h3>
+          <h4>Angle Training Lab</h4>
+          <p>Master 45°, 90°, and 180° pie sectors.</p>
+          <button class="btn btn-primary card-btn">ENTER LAB</button>
+        </div>
+
+        <!-- Mission 2 Card -->
+        <div id="map-m2" class="map-card locked" data-mission="2">
+          <div class="card-status-badge badge-locked">🔒 LOCKED</div>
+          <div class="card-icon">📊</div>
+          <h3>Mission 2</h3>
+          <h4>Data Decoder Centre</h4>
+          <p>Convert quantities and fractions into angles.</p>
+          <button class="btn btn-secondary card-btn" disabled>LOCKED</button>
+        </div>
+
+        <!-- Mission 3 Card -->
+        <div id="map-m3" class="map-card locked" data-mission="3">
+          <div class="card-status-badge badge-locked">🔒 LOCKED</div>
+          <div class="card-icon">🧩</div>
+          <h3>Mission 3</h3>
+          <h4>Pie Chart Repair Station</h4>
+          <p>Construct pie charts and interpret data.</p>
+          <button class="btn btn-secondary card-btn" disabled>LOCKED</button>
+        </div>
+
+        <!-- Mission 4 Card -->
+        <div id="map-m4" class="map-card locked" data-mission="4">
+          <div class="card-status-badge badge-locked">🔒 LOCKED</div>
+          <div class="card-icon">⚡</div>
+          <h3>Mission 4</h3>
+          <h4>360° Core Chamber</h4>
+          <p>Final Mission: Restore full city power!</p>
+          <button class="btn btn-secondary card-btn" disabled>LOCKED</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. ACTIVE MISSION SCREEN -->
+    <section id="screen-mission" class="screen hidden">
+      <!-- Mission Bar -->
+      <div class="mission-top-bar">
+        <button id="btn-back-to-map" class="btn btn-secondary btn-sm">🗺️ MAP</button>
+        <div class="mission-title-group">
+          <span id="mission-env-badge" class="env-badge">LAB</span>
+          <h2 id="active-mission-title">Mission 1: Angle Training</h2>
+        </div>
+        <div class="mission-lives-display">
+          <span class="lives-label">LIVES:</span>
+          <div id="mission-lives-hearts" class="hearts-row">
+            <span class="heart-icon active">❤️</span>
+            <span class="heart-icon active">❤️</span>
+            <span class="heart-icon active">❤️</span>
+            <span class="heart-icon active">❤️</span>
+            <span class="heart-icon active">❤️</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Mission Workspace Area -->
+      <div id="mission-workspace" class="mission-workspace env-m1">
+        <!-- Dynamic Mission Content Rendered Here -->
+      </div>
+
+      <!-- PI-BOT Guide Overlay Bar -->
+      <div id="pibot-guide-bar" class="pibot-guide-bar">
+        <div class="pibot-avatar-small" id="pibot-avatar-container">
+          <!-- PI-BOT Avatar SVG -->
+        </div>
+        <div class="pibot-speech-bubble">
+          <span id="pibot-speech-text">Agent 360, ready for training? Let's master our circle angles!</span>
+        </div>
+        <button id="btn-hint" class="btn btn-warning hint-btn">
+          💡 HINT
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODALS -->
+
+  <!-- 1. FEEDBACK MODAL / POPUP -->
+  <div id="modal-feedback" class="modal-overlay hidden">
+    <div class="modal-card feedback-card" id="feedback-card-element">
+      <div id="feedback-icon" class="feedback-icon">✓</div>
+      <h2 id="feedback-title">Correct!</h2>
+      <p id="feedback-message" class="feedback-text">Explanation text here...</p>
+      <button id="btn-feedback-next" class="btn btn-primary btn-large">NEXT QUESTION ➡️</button>
+    </div>
+  </div>
+
+  <!-- 2. MISSION PAUSED / GAME OVER MODAL -->
+  <div id="modal-paused" class="modal-overlay hidden">
+    <div class="modal-card paused-card">
+      <div class="paused-header">
+        <span class="broken-heart-icon">🖤 🖤 🖤 🖤 🖤</span>
+        <h2>MISSION PAUSED</h2>
+      </div>
+      <p class="dialogue-text">"Agent 360, you have used all your lives!"</p>
+      <p class="dialogue-text">"Great mathematicians learn from mistakes."</p>
+      <p class="dialogue-highlight">"Use what you have learned and try again."</p>
+      <button id="btn-restart-mission" class="btn btn-danger btn-large">
+        🔄 RESTART MISSION
+      </button>
+    </div>
+  </div>
+
+  <!-- 3. MISSION COMPLETED MODAL -->
+  <div id="modal-mission-complete" class="modal-overlay hidden">
+    <div class="modal-card victory-card">
+      <div class="confetti-container" id="confetti-holder"></div>
+      <div class="star-badge">⭐</div>
+      <h2 id="mission-complete-title">MISSION 1 COMPLETE!</h2>
+      <p id="mission-complete-subtitle" class="victory-sub">You mastered the Angle Training Lab!</p>
+
+      <div class="survival-bonus-box">
+        <h3>SURVIVAL BONUS</h3>
+        <div class="bonus-details">
+          <span>Remaining Lives: <strong id="complete-lives-count">5</strong> ❤️</span>
+          <span class="bonus-pts">+<strong id="complete-bonus-pts">50</strong> Points!</span>
+        </div>
+      </div>
+
+      <div class="complete-stats">
+        <p>Total Score: <strong id="complete-total-score">0</strong></p>
+      </div>
+
+      <button id="btn-continue-map" class="btn btn-success btn-large">
+        CONTINUE TO MAP 🗺️
+      </button>
+    </div>
+  </div>
+
+  <!-- 4. FINAL VICTORY SCREEN / MODAL -->
+  <div id="modal-final-victory" class="modal-overlay hidden">
+    <div class="modal-card victory-card final-victory-card">
+      <div class="victory-header">
+        <span class="core-sparkle">⚡ 360° CORE RESTORED! ⚡</span>
+        <h2>MATH CITY IS SAVED!</h2>
+      </div>
+
+      <div class="master-badge">
+        <span>⭐⭐⭐⭐</span>
+        <h3>PIE CHART MASTER</h3>
+      </div>
+
+      <div class="skills-learned-box">
+        <h4>MISSION ACCOMPLISHED!</h4>
+        <p>"You successfully restored the 360° Core!"</p>
+
+        <ul class="skills-list">
+          <li>✓ Identified 45°, 90°, and 180° sectors.</li>
+          <li>✓ Matched quantities with correct angles.</li>
+          <li>✓ Completed pie charts using given quantities.</li>
+          <li>✓ Interpreted information from pie charts.</li>
+        </ul>
+      </div>
+
+      <button id="btn-view-report" class="btn btn-primary btn-large">
+        📊 VIEW TEACHER REPORT
+      </button>
+    </div>
+  </div>
+
+  <!-- 5. TEACHER PERFORMANCE REPORT MODAL -->
+  <div id="modal-report" class="modal-overlay hidden">
+    <div class="modal-card report-card">
+      <div class="report-header">
+        <div class="report-title-group">
+          <h2>🏙️ AGENT 360 PERFORMANCE REPORT</h2>
+          <span class="dskp-tag">Malaysian Year 6 Mathematics | DSKP 8.1.1 Alignment</span>
+        </div>
+        <button id="btn-close-report" class="close-btn">&times;</button>
+      </div>
+
+      <div class="report-body" id="report-content">
+        <!-- Rendered via JavaScript -->
+      </div>
+
+      <div class="report-footer">
+        <button id="btn-print-report" class="btn btn-secondary">🖨️ PRINT / SAVE REPORT</button>
+        <button id="btn-play-again" class="btn btn-primary">🔄 PLAY AGAIN</button>
+        <button id="btn-return-home" class="btn btn-success">🏠 RETURN TO HOME</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS App -->
+  <script src="app.js"></script>
+</body>
+</html>
