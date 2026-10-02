@@ -4,7 +4,7 @@
 const gameState = {
   playerName: '360',
   currentMission: 1,
-  currentQuestionIndex: 0, // In M3/M4, tracks active sub-step (0: chart assembly, 1..N: interpretations)
+  currentQuestionIndex: 0,
   lives: 5,
   score: 0,
   stars: 0,
@@ -20,18 +20,23 @@ const gameState = {
     4: false
   },
   attemptedThisQuestion: false,
-  soundEnabled: true,
+  lastAnswerWasCorrect: false,
+  musicEnabled: true,
+  sfxEnabled: true,
   currentHintTier: 0,
   activeDatasetIndex: 0,
-  // Mission 3 & 4 Assembly State
-  m3ChartIndex: 0, // 0 to 4 (5 pie chart challenges)
-  placedSectors: [] // Stores placed sector items
+  m3ChartIndex: 0,
+  placedSectors: [],
+  m4Phase: 1 // Phase 1 to 4 for CODE RED Mission 4
 };
 
-// 2. WEB AUDIO SYNTHESIZER
+// 2. WEB AUDIO SYNTHESIZER & BACKGROUND MUSIC ENGINE
 class SoundEngine {
   constructor() {
     this.ctx = null;
+    this.musicGain = null;
+    this.isMusicPlaying = false;
+    this.musicLoopTimer = null;
   }
 
   init() {
@@ -45,8 +50,70 @@ class SoundEngine {
     }
   }
 
+  startBackgroundMusic() {
+    if (!gameState.musicEnabled || this.isMusicPlaying) return;
+    this.init();
+    if (!this.ctx) return;
+
+    this.isMusicPlaying = true;
+    this.musicGain = this.ctx.createGain();
+    this.musicGain.gain.setValueAtTime(0.08, this.ctx.currentTime); // Low 20-30% background volume
+    this.musicGain.connect(this.ctx.destination);
+
+    // Continuous cheerful futuristic arpeggio loop (C Major - C4, E4, G4, B4, C5)
+    const notes = [261.63, 329.63, 392.00, 493.88, 523.25, 493.88, 392.00, 329.63];
+    let noteIndex = 0;
+
+    const playNextNote = () => {
+      if (!this.isMusicPlaying || !this.ctx) return;
+
+      const osc = this.ctx.createOscillator();
+      const noteGain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(notes[noteIndex], this.ctx.currentTime);
+
+      noteGain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+      noteGain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.35);
+
+      osc.connect(noteGain);
+      noteGain.connect(this.musicGain);
+
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.35);
+
+      noteIndex = (noteIndex + 1) % notes.length;
+      this.musicLoopTimer = setTimeout(playNextNote, 400);
+    };
+
+    playNextNote();
+  }
+
+  stopBackgroundMusic() {
+    this.isMusicPlaying = false;
+    if (this.musicLoopTimer) {
+      clearTimeout(this.musicLoopTimer);
+      this.musicLoopTimer = null;
+    }
+  }
+
+  toggleMusic() {
+    gameState.musicEnabled = !gameState.musicEnabled;
+    if (gameState.musicEnabled) {
+      this.startBackgroundMusic();
+    } else {
+      this.stopBackgroundMusic();
+    }
+    return gameState.musicEnabled;
+  }
+
+  toggleSFX() {
+    gameState.sfxEnabled = !gameState.sfxEnabled;
+    return gameState.sfxEnabled;
+  }
+
   playCorrect() {
-    if (!gameState.soundEnabled) return;
+    if (!gameState.sfxEnabled) return;
     this.init();
     if (!this.ctx) return;
 
@@ -71,7 +138,7 @@ class SoundEngine {
   }
 
   playWrong() {
-    if (!gameState.soundEnabled) return;
+    if (!gameState.sfxEnabled) return;
     this.init();
     if (!this.ctx) return;
 
@@ -94,7 +161,7 @@ class SoundEngine {
   }
 
   playLifeLost() {
-    if (!gameState.soundEnabled) return;
+    if (!gameState.sfxEnabled) return;
     this.init();
     if (!this.ctx) return;
 
@@ -118,7 +185,7 @@ class SoundEngine {
   }
 
   playVictory() {
-    if (!gameState.soundEnabled) return;
+    if (!gameState.sfxEnabled) return;
     this.init();
     if (!this.ctx) return;
 
@@ -343,6 +410,7 @@ function setupEventListeners() {
   const startBtn = document.getElementById('btn-start-mission');
   if (startBtn) {
     startBtn.addEventListener('click', () => {
+      sounds.startBackgroundMusic();
       showScreen('screen-name');
     });
   }
@@ -361,15 +429,26 @@ function setupEventListeners() {
     });
   }
 
-  // Sound toggle
-  const soundBtn = document.getElementById('sound-toggle-btn');
-  if (soundBtn) {
-    soundBtn.addEventListener('click', () => {
-      gameState.soundEnabled = !gameState.soundEnabled;
-      const soundIcon = document.getElementById('sound-icon');
-      const soundText = document.getElementById('sound-text');
-      if (soundIcon) soundIcon.textContent = gameState.soundEnabled ? '🔊' : '🔇';
-      if (soundText) soundText.textContent = gameState.soundEnabled ? 'SOUND ON' : 'SOUND OFF';
+  // Music & SFX Toggles
+  const musicBtn = document.getElementById('music-toggle-btn');
+  if (musicBtn) {
+    musicBtn.addEventListener('click', () => {
+      const isMusicOn = sounds.toggleMusic();
+      const musicIcon = document.getElementById('music-icon');
+      const musicText = document.getElementById('music-text');
+      if (musicIcon) musicIcon.textContent = isMusicOn ? '🎵' : '🔇';
+      if (musicText) musicText.textContent = isMusicOn ? 'MUSIC ON' : 'MUSIC OFF';
+    });
+  }
+
+  const sfxBtn = document.getElementById('sfx-toggle-btn');
+  if (sfxBtn) {
+    sfxBtn.addEventListener('click', () => {
+      const isSfxOn = sounds.toggleSFX();
+      const sfxIcon = document.getElementById('sfx-icon');
+      const sfxText = document.getElementById('sfx-text');
+      if (sfxIcon) sfxIcon.textContent = isSfxOn ? '🔊' : '🔇';
+      if (sfxText) sfxText.textContent = isSfxOn ? 'SFX ON' : 'SFX OFF';
     });
   }
 
@@ -640,8 +719,11 @@ function startMission(missionNum) {
   gameState.currentHintTier = 0;
   gameState.placedSectors = [];
   if (missionNum === 3) gameState.m3ChartIndex = 0;
+  if (missionNum === 4) gameState.m4Phase = 1;
 
   updateUI();
+
+  if (typeof document === 'undefined') return;
 
   const titleEl = document.getElementById('active-mission-title');
   const envBadge = document.getElementById('mission-env-badge');
@@ -1020,12 +1102,12 @@ function renderPieChartBuilder(dataset) {
     startA = endA;
   });
 
-  // Category palette
+  // Category palette with HTML5 draggable support
   let paletteCardsHtml = '';
   dataset.categories.forEach(cat => {
     const isPlaced = gameState.placedSectors.some(s => s.id === cat.id);
     paletteCardsHtml += `
-      <div class="draggable-sector-card ${isPlaced ? 'placed' : ''}" data-cat-id="${cat.id}">
+      <div class="draggable-sector-card ${isPlaced ? 'placed' : ''}" data-cat-id="${cat.id}" draggable="${!isPlaced}">
         <span class="sector-icon">${cat.icon}</span>
         <div class="sector-text-group">
           <strong>${cat.name}</strong>
@@ -1047,7 +1129,7 @@ function renderPieChartBuilder(dataset) {
 
       <div class="builder-grid">
         <!-- SVG Canvas -->
-        <div class="pie-canvas-area">
+        <div class="pie-canvas-area" id="pie-drop-zone">
           <div class="pie-angle-tracker">
             PROGRESS: <strong>${currentTotalAngle}° / 360°</strong>
           </div>
@@ -1060,6 +1142,7 @@ function renderPieChartBuilder(dataset) {
             ${installedSvgPaths}
             <circle cx="100" cy="100" r="4" fill="#ffffff"/>
           </svg>
+          <span style="font-size:0.75rem; color:#94a3b8; margin-top:6px;">💡 Drag sector here or click button below</span>
         </div>
 
         <!-- Palette Side Panel -->
@@ -1074,7 +1157,7 @@ function renderPieChartBuilder(dataset) {
     </div>
   `;
 
-  // Sector addition buttons
+  // Sector addition buttons & HTML5 Drag and Drop listeners
   const addBtns = workspace.querySelectorAll('.add-sector-btn');
   addBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -1084,6 +1167,28 @@ function renderPieChartBuilder(dataset) {
       if (category) handleSectorAdd(category, dataset);
     });
   });
+
+  const cards = workspace.querySelectorAll('.draggable-sector-card[draggable="true"]');
+  cards.forEach(card => {
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', card.getAttribute('data-cat-id'));
+    });
+  });
+
+  const dropZone = workspace.querySelector('#pie-drop-zone');
+  if (dropZone) {
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const catId = e.dataTransfer.getData('text/plain');
+      const category = dataset.categories.find(c => c.id === catId);
+      if (category && !gameState.placedSectors.some(s => s.id === category.id)) {
+        handleSectorAdd(category, dataset);
+      }
+    });
+  }
 }
 
 function handleSectorAdd(category, dataset) {
@@ -1217,121 +1322,264 @@ function handleInterpretationAnswer(chosenIndex, correctIndex, explanation) {
   }
 }
 
-// MISSION 4: FINAL MISSION - 360° CORE CHAMBER
+// MISSION 4: CODE RED - THE FINAL 360° MULTI-PHASE CHALLENGE
 function loadMission4() {
   if (typeof document === 'undefined') return;
   const workspace = document.getElementById('mission-workspace');
   if (!workspace) return;
 
-  const dataset = pieDatasets[4]; // Favourite School Subjects
-
-  if (gameState.currentQuestionIndex === 0) {
-    // Stage 1: Build Final Core Pie Chart
-    renderCoreChamberBuilder(dataset);
+  if (gameState.m4Phase === 1) {
+    renderM4Phase1();
+  } else if (gameState.m4Phase === 2) {
+    renderM4Phase2();
+  } else if (gameState.m4Phase === 3) {
+    renderM4Phase3();
+  } else if (gameState.m4Phase === 4) {
+    renderM4Phase4();
   } else {
-    // Stage 2: Final Interpretation Questions
-    renderInterpretationQuestion(dataset);
+    completeMission(4);
   }
 }
 
-function renderCoreChamberBuilder(dataset) {
-  if (typeof document === 'undefined') return;
+function renderCoreEnergyMeter() {
+  const corePercents = { 1: '0%', 2: '25%', 3: '50%', 4: '75%' };
+  return `
+    <div class="core-meter-banner" style="background:#0f172a; border:2px solid #ef4444; border-radius:12px; padding:10px; margin-bottom:14px; text-align:center; width:100%;">
+      <span style="color:#fbbf24; font-family:var(--font-heading); font-size:0.9rem;">🚨 CODE RED CORE RESTORATION: PHASE ${gameState.m4Phase} / 4</span>
+      <div style="width:100%; background:#1e293b; height:16px; border-radius:8px; overflow:hidden; margin-top:6px; border:1px solid #475569;">
+        <div style="width:${corePercents[gameState.m4Phase] || '100%'}; background:linear-gradient(90deg, #ef4444, #38bdf8); height:100%; transition:width 0.5s ease;"></div>
+      </div>
+      <span style="font-size:0.8rem; color:#cbd5e1; margin-top:4px; display:block;">CORE POWER: ${corePercents[gameState.m4Phase] || '100%'} RESTORED</span>
+    </div>
+  `;
+}
+
+// PHASE 1: FIND THE MISSING DATA
+function renderM4Phase1() {
   const workspace = document.getElementById('mission-workspace');
   if (!workspace) return;
 
-  updatePIBotSpeech("⚡ FINAL MISSION! Drag missing sectors to restore the 360° Core!", "thinking");
-
-  let currentTotalAngle = 0;
-  gameState.placedSectors.forEach(s => currentTotalAngle += s.angle);
-
-  let installedSvgPaths = '';
-  let startA = 0;
-  gameState.placedSectors.forEach((sec) => {
-    const endA = startA + sec.angle;
-    installedSvgPaths += `
-      <path d="${getPieSlicePath(100, 100, 80, startA, endA)}" fill="${sec.color}" stroke="#ffffff" stroke-width="2"/>
-    `;
-    startA = endA;
-  });
-
-  let paletteCardsHtml = '';
-  dataset.categories.forEach(cat => {
-    const isPlaced = gameState.placedSectors.some(s => s.id === cat.id);
-    paletteCardsHtml += `
-      <div class="draggable-sector-card ${isPlaced ? 'placed' : ''}" data-cat-id="${cat.id}">
-        <span class="sector-icon">${cat.icon}</span>
-        <div class="sector-text-group">
-          <strong>${cat.name}</strong>
-          <span>${cat.pupils} pupil(s) • ${cat.angle}°</span>
-        </div>
-        <button class="btn btn-sm btn-primary add-sector-btn" ${isPlaced ? 'disabled' : ''}>
-          ${isPlaced ? '✓ PLACED' : '+ RESTORE SECTOR'}
-        </button>
-      </div>
-    `;
-  });
+  updatePIBotSpeech("PHASE 1: Calculate the missing pupil quantity in the survey table!", "thinking");
 
   workspace.innerHTML = `
-    <div class="builder-container core-container">
-      <div class="builder-header">
-        <span class="q-progress">CORE CHAMBER</span>
-        <h3 style="color:#f59e0b;">⚡ RESTORE THE 360° CORE ⚡</h3>
-      </div>
+    <div class="challenge-container">
+      ${renderCoreEnergyMeter()}
 
-      <div class="builder-grid">
-        <!-- SVG Core Canvas -->
-        <div class="pie-canvas-area">
-          <div class="core-energy-meter">
-            ENERGY CORE: <strong>${currentTotalAngle}° / 360°</strong>
-          </div>
-          <div class="core-canvas-wrapper ${currentTotalAngle === 360 ? 'core-fully-restored' : ''}">
-            <svg viewBox="0 0 200 200" class="main-pie-svg">
-              <circle cx="100" cy="100" r="80" fill="#0f172a" stroke="#ef4444" stroke-width="4"/>
-              ${installedSvgPaths}
-              <circle cx="100" cy="100" r="8" fill="#fbbf24"/>
-            </svg>
-          </div>
+      <div class="decoder-card" style="max-width:550px;">
+        <h3 style="color:#f59e0b; margin-bottom:8px;">Favourite School Clubs Survey</h3>
+        <p class="data-summary">Total Pupils = <strong>16</strong> (360° total • 1 pupil = 22.5°)</p>
+
+        <div style="background:#1e293b; border:1px solid #475569; border-radius:10px; padding:14px; margin:14px 0; text-align:left;">
+          <p style="margin-bottom:6px;">⚽ Sports Club: <strong>8 pupils</strong> (180°)</p>
+          <p style="margin-bottom:6px;">🔬 Science Club: <strong>4 pupils</strong> (90°)</p>
+          <p style="margin-bottom:6px; color:#fbbf24;">🎨 Art Club: <strong>? pupils</strong> (Find missing quantity!)</p>
+          <p>🎵 Music Club: <strong>2 pupils</strong> (45°)</p>
         </div>
 
-        <!-- Core Sectors Palette -->
-        <div class="palette-area">
-          <h4>Core Energy Sectors</h4>
-          <p class="sub-text">Dataset: ${dataset.title} (Total = ${dataset.totalPupils} pupils)</p>
-          <div class="palette-list">
-            ${paletteCardsHtml}
-          </div>
+        <p style="font-size:1.05rem; color:white; margin-bottom:14px;">How many pupils are in the <strong>Art Club</strong>?</p>
+
+        <div class="btn-options-grid">
+          <button class="btn btn-secondary m4-p1-btn" data-val="1">1 pupil</button>
+          <button class="btn btn-secondary m4-p1-btn" data-val="2">2 pupils</button>
+          <button class="btn btn-secondary m4-p1-btn" data-val="4">4 pupils</button>
         </div>
       </div>
     </div>
   `;
 
-  const addBtns = workspace.querySelectorAll('.add-sector-btn');
-  addBtns.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const card = e.target.closest('.draggable-sector-card');
-      const catId = card.getAttribute('data-cat-id');
-      const category = dataset.categories.find(c => c.id === catId);
-      if (category) handleCoreSectorAdd(category, dataset);
+  const btns = workspace.querySelectorAll('.m4-p1-btn');
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = parseInt(btn.getAttribute('data-val'));
+      if (val === 2) {
+        sounds.playCorrect();
+        const pts = gameState.attemptedThisQuestion ? 5 : 10;
+        gameState.score += pts;
+        gameState.totalCorrect += 1;
+        updateUI();
+        showFeedback(true, "✓ Phase 1 Clear!", "Excellent deduction! 16 - (8 + 4 + 2) = 2 pupils for Art Club (45° sector)!");
+      } else {
+        deductLife();
+        gameState.attemptedThisQuestion = true;
+        updatePIBotSpeech("Subtract the known club quantities (8 + 4 + 2 = 14) from the total 16 pupils!", "concerned");
+        showFeedback(false, "✕ Try Again!", "Total = 16 pupils. 8 + 4 + 2 = 14 pupils. 16 - 14 = 2 pupils!");
+      }
     });
   });
 }
 
-function handleCoreSectorAdd(category, dataset) {
-  sounds.playCorrect();
-  gameState.placedSectors.push(category);
+// PHASE 2: REVERSE THE CLUE
+function renderM4Phase2() {
+  const workspace = document.getElementById('mission-workspace');
+  if (!workspace) return;
 
-  let currentTotalAngle = 0;
-  gameState.placedSectors.forEach(s => currentTotalAngle += s.angle);
+  updatePIBotSpeech("PHASE 2: Reverse Reasoning! Look at the sector angle to recover the pupil quantity!", "thinking");
 
-  if (currentTotalAngle === 360) {
-    gameState.completedCharts += 1;
-    gameState.score += 50;
-    updateUI();
+  workspace.innerHTML = `
+    <div class="challenge-container">
+      ${renderCoreEnergyMeter()}
 
-    showFeedback(true, "⚡ 360° CORE RESTORED!", "The 360° Core is fully energized! Now complete the final interpretation assessment to save Math City!");
-  } else {
-    renderCoreChamberBuilder(dataset);
-  }
+      <div class="decoder-card" style="max-width:550px;">
+        <h3 style="color:#f59e0b; margin-bottom:8px;">Reverse Clue Challenge</h3>
+        <p class="data-summary">Total Survey Group = <strong>8 pupils</strong> (Full 360° circle)</p>
+
+        <div style="display:flex; justify-content:center; margin:16px 0;">
+          <svg viewBox="0 0 120 120" style="width:140px; height:140px; background:#0f172a; border-radius:50%; border:2px solid #38bdf8;">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#334155" stroke-dasharray="4,4"/>
+            <path d="${getPieSlicePath(60, 60, 50, 0, 90)}" fill="#38bdf8" stroke="#60a5fa" stroke-width="2"/>
+          </svg>
+        </div>
+
+        <p style="font-size:1.1rem; color:white; margin-bottom:14px;">This sector represents <strong>90°</strong>. How many pupils does it represent?</p>
+
+        <div class="btn-options-grid">
+          <button class="btn btn-secondary m4-p2-btn" data-val="1">1 pupil</button>
+          <button class="btn btn-secondary m4-p2-btn" data-val="2">2 pupils</button>
+          <button class="btn btn-secondary m4-p2-btn" data-val="4">4 pupils</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const btns = workspace.querySelectorAll('.m4-p2-btn');
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = parseInt(btn.getAttribute('data-val'));
+      if (val === 2) {
+        sounds.playCorrect();
+        const pts = gameState.attemptedThisQuestion ? 5 : 10;
+        gameState.score += pts;
+        gameState.totalCorrect += 1;
+        updateUI();
+        showFeedback(true, "✓ Phase 2 Clear!", "Spot on! 90° is 1/4 of 360°. One quarter of 8 pupils = 2 pupils!");
+      } else {
+        deductLife();
+        gameState.attemptedThisQuestion = true;
+        updatePIBotSpeech("90° is a quarter circle (1/4). What is 1/4 of 8 pupils?", "concerned");
+        showFeedback(false, "✕ Try Again!", "90° represents 1/4 of the total circle. 8 pupils ÷ 4 = 2 pupils.");
+      }
+    });
+  });
+}
+
+// PHASE 3: REPAIR THE CORRUPTED CHART
+function renderM4Phase3() {
+  const workspace = document.getElementById('mission-workspace');
+  if (!workspace) return;
+
+  updatePIBotSpeech("PHASE 3: Corrupted Data Detected! Identify and repair the corrupted 90° error!", "thinking");
+
+  workspace.innerHTML = `
+    <div class="challenge-container">
+      ${renderCoreEnergyMeter()}
+
+      <div class="decoder-card" style="max-width:600px;">
+        <h3 style="color:#ef4444; margin-bottom:8px;">⚠️ Corrupted System Chart</h3>
+        <p class="data-summary">Dataset: Favourite School Subjects (8 Pupils Total)</p>
+
+        <div style="background:#0f172a; border:1px solid #ef4444; border-radius:12px; padding:16px; margin:14px 0;">
+          <p style="color:#fca5a5; font-size:0.9rem; margin-bottom:10px;">Corrupted Status: Science sector is mislabelled as 45° instead of 90°!</p>
+
+          <div style="display:flex; justify-content:center; gap:20px; align-items:center; flex-wrap:wrap;">
+            <svg viewBox="0 0 200 200" style="width:160px; height:160px;">
+              <path d="${getPieSlicePath(100, 100, 80, 0, 180)}" fill="#2563eb" stroke="#ffffff" stroke-width="2"/>
+              <path d="${getPieSlicePath(100, 100, 80, 180, 270)}" fill="#059669" stroke="#ffffff" stroke-width="2"/>
+              <path d="${getPieSlicePath(100, 100, 80, 270, 315)}" fill="#d97706" stroke="#ffffff" stroke-width="2"/>
+              <path d="${getPieSlicePath(100, 100, 80, 315, 360)}" fill="#9333ea" stroke="#ffffff" stroke-width="2"/>
+            </svg>
+
+            <div style="text-align:left; font-size:0.85rem; color:#cbd5e1;">
+              <p>🟦 Mathematics: 4 pupils (180°)</p>
+              <p style="color:#f87171;">🟩 Science: 2 pupils (Mislabeled 45°)</p>
+              <p>🟨 English: 1 pupil (45°)</p>
+              <p>🟪 Art: 1 pupil (45°)</p>
+            </div>
+          </div>
+        </div>
+
+        <p style="font-size:1rem; color:white; margin-bottom:14px;">Select the correct repair action for Science (2 pupils):</p>
+
+        <div class="btn-options-grid vertical">
+          <button class="btn btn-secondary m4-p3-btn" data-choice="wrong1">Change Science to 45°</button>
+          <button class="btn btn-success m4-p3-btn" data-choice="correct">REPAIR: Change Science sector label to 90°</button>
+          <button class="btn btn-secondary m4-p3-btn" data-choice="wrong2">Change Science to 180°</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const btns = workspace.querySelectorAll('.m4-p3-btn');
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const choice = btn.getAttribute('data-choice');
+      if (choice === 'correct') {
+        sounds.playCorrect();
+        const pts = gameState.attemptedThisQuestion ? 5 : 10;
+        gameState.score += pts;
+        gameState.completedCharts += 1;
+        gameState.totalCorrect += 1;
+        updateUI();
+        showFeedback(true, "✓ Phase 3 System Repaired!", "Great diagnostic work! 2 pupils out of 8 represent exactly 90° (1/4 of 360°)!");
+      } else {
+        deductLife();
+        gameState.attemptedThisQuestion = true;
+        updatePIBotSpeech("Science has 2 pupils. 2/8 = 1/4 of 360° = 90°!", "concerned");
+        showFeedback(false, "✕ Try Again!", "Science represents 2 out of 8 pupils. 2 × 45° = 90°.");
+      }
+    });
+  });
+}
+
+// PHASE 4: FINAL DATA DETECTIVE
+function renderM4Phase4() {
+  const workspace = document.getElementById('mission-workspace');
+  if (!workspace) return;
+
+  updatePIBotSpeech("PHASE 4: Final Data Detective! Answer the advanced interpretation question!", "thinking");
+
+  workspace.innerHTML = `
+    <div class="challenge-container">
+      ${renderCoreEnergyMeter()}
+
+      <div class="decoder-card" style="max-width:580px;">
+        <h3 style="color:#fbbf24; margin-bottom:8px;">🕵️ Final Data Detective</h3>
+        <p class="data-summary">Fully Repaired 360° Core Pie Chart</p>
+
+        <div style="background:#0f172a; border:1px solid #38bdf8; border-radius:12px; padding:14px; margin:12px 0;">
+          <p style="color:#e2e8f0; font-size:0.95rem; margin-bottom:8px;">Which two subject categories together form exactly <strong>135°</strong>?</p>
+          <p style="font-size:0.8rem; color:#94a3b8;">(Hint: Science = 90°, English = 45°, Art = 45°)</p>
+        </div>
+
+        <div class="btn-options-grid vertical">
+          <button class="btn btn-secondary m4-p4-btn" data-val="wrong1">Mathematics & Science (180° + 90° = 270°)</button>
+          <button class="btn btn-secondary m4-p4-btn" data-val="wrong2">English & Art (45° + 45° = 90°)</button>
+          <button class="btn btn-success m4-p4-btn" data-val="correct">Science & English / Art (90° + 45° = 135°)</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const btns = workspace.querySelectorAll('.m4-p4-btn');
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.getAttribute('data-val');
+      if (val === 'correct') {
+        sounds.playCorrect();
+        const pts = gameState.attemptedThisQuestion ? 5 : 10;
+        gameState.score += pts;
+        gameState.interpretationScore += 1;
+        gameState.totalCorrect += 1;
+        updateUI();
+
+        showFeedback(true, "⚡ 360° CORE RESTORED!", "MATH CITY IS SAVED! Science (90°) + English/Art (45°) = 135°!");
+      } else {
+        deductLife();
+        gameState.attemptedThisQuestion = true;
+        updatePIBotSpeech("Look for a 90° sector and a 45° sector: 90° + 45° = 135°!", "concerned");
+        showFeedback(false, "✕ Try Again!", "Science (90°) plus English (45°) equals 135°.");
+      }
+    });
+  });
 }
 
 // TEACHER PERFORMANCE REPORT GENERATOR
@@ -1375,18 +1623,22 @@ function renderTeacherReport() {
           <span class="report-item-val">${gameState.hintsUsed}</span>
         </div>
         <div class="report-item">
+          <span class="report-item-label">Music & Audio Status:</span>
+          <span class="report-item-val">${gameState.musicEnabled ? '🎵 ON' : '🔇 OFF'}</span>
+        </div>
+        <div class="report-item" style="grid-column: 1 / -1;">
           <span class="report-item-label">Final Achievement:</span>
           <span class="report-item-val" style="color:#38bdf8;">${achievementTitle}</span>
         </div>
       </div>
 
       <div class="learning-outcomes-assessment">
-        <h4 style="color:white; margin-bottom:8px;">Formative Learning Outcomes (DSKP 8.1.1):</h4>
+        <h4 style="color:white; margin-bottom:8px;">Formative Learning Outcomes Assessment (DSKP 8.1.1):</h4>
         <ul style="list-style:none; padding-left:0; color:#cbd5e1; font-size:0.9rem; display:flex; flex-direction:column; gap:6px;">
-          <li>${gameState.missionProgress[1] ? '✅' : '⏳'} Recognise 45°, 90°, and 180° pie chart sectors.</li>
-          <li>${gameState.missionProgress[2] ? '✅' : '⏳'} Connect quantities to correct sector angles.</li>
-          <li>${gameState.missionProgress[3] ? '✅' : '⏳'} Complete pie charts using given quantities.</li>
-          <li>${gameState.missionProgress[4] ? '✅' : '⏳'} Interpret data accurately from completed pie charts.</li>
+          <li>${gameState.missionProgress[1] ? '✅' : '⏳'} Mission 1: Recognise 45°, 90°, and 180° pie chart sectors.</li>
+          <li>${gameState.missionProgress[2] ? '✅' : '⏳'} Mission 2: Connect quantities to correct sector angles.</li>
+          <li>${gameState.missionProgress[3] ? '✅' : '⏳'} Mission 3: Complete pie charts using given quantities.</li>
+          <li>${gameState.missionProgress[4] ? '✅' : '⏳'} Mission 4 (CODE RED): Missing data, reverse clues, error repair & data detective interpretation.</li>
         </ul>
       </div>
     </div>
@@ -1395,6 +1647,7 @@ function renderTeacherReport() {
 
 // FEEDBACK & ADVANCE QUESTION
 function showFeedback(isCorrect, title, message) {
+  gameState.lastAnswerWasCorrect = isCorrect;
   if (typeof document === 'undefined') return;
   const card = document.getElementById('feedback-card-element');
   const icon = document.getElementById('feedback-icon');
@@ -1420,13 +1673,14 @@ function showFeedback(isCorrect, title, message) {
 function advanceQuestion() {
   if (gameState.lives <= 0) return;
 
-  const lastFeedbackTitle = document.getElementById('feedback-title')?.textContent || '';
-  const lastFeedbackIsCorrect = lastFeedbackTitle.includes('Correct') || lastFeedbackTitle.includes('RESTORED') || lastFeedbackTitle.includes('CORE');
-
-  if (lastFeedbackIsCorrect) {
+  if (gameState.lastAnswerWasCorrect) {
     gameState.currentQuestionIndex += 1;
     gameState.attemptedThisQuestion = false;
     gameState.currentHintTier = 0;
+
+    if (gameState.currentMission === 4) {
+      gameState.m4Phase += 1;
+    }
 
     if (gameState.currentMission === 1) {
       loadMission1();
@@ -1501,11 +1755,13 @@ if (typeof module !== 'undefined' && module.exports) {
     pieDatasets,
     getPieSlicePath,
     deductLife,
+    startMission,
     handleMission1Answer,
     handleMission2Answer,
     handleInterpretationAnswer,
     handleSectorAdd,
-    handleCoreSectorAdd,
+    showFeedback,
+    advanceQuestion,
     renderTeacherReport
   };
 }
