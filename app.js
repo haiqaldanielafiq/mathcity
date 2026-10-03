@@ -27,8 +27,58 @@ const gameState = {
   activeDatasetIndex: 0,
   m3ChartIndex: 0,
   placedSectors: [],
-  m4Phase: 1 // Phase 1 to 4 for CODE RED Mission 4
+  m4Phase: 1, // Phase 1 to 4 for CODE RED Mission 4
+  currentOptions: [], // Shuffled options for current question
+  selectedOptionId: null,
+  selectedWasCorrect: false
 };
+
+// Utility: Fisher-Yates Shuffle & Option State System
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function getOptionState(optionId) {
+  if (!gameState.selectedOptionId) return "idle";
+
+  if (gameState.selectedOptionId === optionId) {
+    return gameState.selectedWasCorrect
+      ? "correctSelected"
+      : "incorrectSelected";
+  }
+
+  return "idle";
+}
+
+function getOptionCssClass(optionId) {
+  const state = getOptionState(optionId);
+  if (state === "correctSelected") return "btn option-btn correct-selected";
+  if (state === "incorrectSelected") return "btn option-btn incorrect-selected";
+  return "btn option-btn btn-secondary";
+}
+
+function handleOptionClick(option, onComplete) {
+  gameState.selectedOptionId = option.id;
+  gameState.selectedWasCorrect = !!option.isCorrect;
+
+  // Update styling for option buttons immediately
+  const allBtns = document.querySelectorAll('.option-btn');
+  allBtns.forEach(btn => {
+    const optId = btn.getAttribute('data-option-id');
+    if (optId) {
+      btn.className = getOptionCssClass(optId);
+    }
+  });
+
+  setTimeout(() => {
+    onComplete(option.isCorrect);
+  }, 250);
+}
 
 // 2. WEB AUDIO SYNTHESIZER & BACKGROUND MUSIC ENGINE
 class SoundEngine {
@@ -718,6 +768,9 @@ function startMission(missionNum) {
   gameState.attemptedThisQuestion = false;
   gameState.currentHintTier = 0;
   gameState.placedSectors = [];
+  gameState.selectedOptionId = null;
+  gameState.selectedWasCorrect = false;
+  gameState.currentOptions = [];
   if (missionNum === 3) gameState.m3ChartIndex = 0;
   if (missionNum === 4) gameState.m4Phase = 1;
 
@@ -861,7 +914,20 @@ function renderMission1Question() {
     return;
   }
 
+  if (gameState.currentOptions.length === 0) {
+    const rawOptions = [
+      { id: 'm1-45', label: '45°', angle: 45, isCorrect: challenge.angle === 45 },
+      { id: 'm1-90', label: '90°', angle: 90, isCorrect: challenge.angle === 90 },
+      { id: 'm1-180', label: '180°', angle: 180, isCorrect: challenge.angle === 180 }
+    ];
+    gameState.currentOptions = shuffleArray(rawOptions);
+  }
+
   updatePIBotSpeech(`Challenge ${gameState.currentQuestionIndex} of 5: What angle matches this ${challenge.fraction} circle sector?`, "thinking");
+
+  const optionsHtml = gameState.currentOptions.map(opt => `
+    <button class="${getOptionCssClass(opt.id)}" data-option-id="${opt.id}">${opt.label}</button>
+  `).join('');
 
   workspace.innerHTML = `
     <div class="challenge-container">
@@ -885,9 +951,7 @@ function renderMission1Question() {
       <div class="options-group">
         <p class="instruction-text">Select the correct angle label:</p>
         <div class="btn-options-grid">
-          <button class="btn btn-secondary option-btn" data-angle="45">45°</button>
-          <button class="btn btn-secondary option-btn" data-angle="90">90°</button>
-          <button class="btn btn-secondary option-btn" data-angle="180">180°</button>
+          ${optionsHtml}
         </div>
       </div>
     </div>
@@ -896,8 +960,13 @@ function renderMission1Question() {
   const optionBtns = workspace.querySelectorAll('.option-btn');
   optionBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      const chosenAngle = parseInt(btn.getAttribute('data-angle'));
-      handleMission1Answer(chosenAngle, challenge.angle);
+      const optId = btn.getAttribute('data-option-id');
+      const opt = gameState.currentOptions.find(o => o.id === optId);
+      if (opt) {
+        handleOptionClick(opt, () => {
+          handleMission1Answer(opt.angle, challenge.angle);
+        });
+      }
     });
   });
 }
@@ -996,12 +1065,25 @@ function renderMission2Question() {
   const catIndex = (gameState.currentQuestionIndex - 1) % dataset.categories.length;
   const category = dataset.categories[catIndex];
 
+  if (gameState.currentOptions.length === 0) {
+    const rawOptions = [
+      { id: 'm2-45', label: '45°', angle: 45, isCorrect: category.angle === 45 },
+      { id: 'm2-90', label: '90°', angle: 90, isCorrect: category.angle === 90 },
+      { id: 'm2-180', label: '180°', angle: 180, isCorrect: category.angle === 180 }
+    ];
+    gameState.currentOptions = shuffleArray(rawOptions);
+  }
+
   updatePIBotSpeech(`Decoder Challenge ${gameState.currentQuestionIndex} of 5: Calculate the angle for ${category.name}!`, "thinking");
 
   let iconsHtml = '';
   for (let i = 0; i < category.pupils; i++) {
     iconsHtml += `<span class="cartoon-pupil-icon">${category.icon}</span>`;
   }
+
+  const optionsHtml = gameState.currentOptions.map(opt => `
+    <button class="${getOptionCssClass(opt.id)}" data-option-id="${opt.id}">${opt.label}</button>
+  `).join('');
 
   workspace.innerHTML = `
     <div class="challenge-container">
@@ -1025,9 +1107,7 @@ function renderMission2Question() {
         </div>
 
         <div class="btn-options-grid">
-          <button class="btn btn-secondary option-btn" data-angle="45">45°</button>
-          <button class="btn btn-secondary option-btn" data-angle="90">90°</button>
-          <button class="btn btn-secondary option-btn" data-angle="180">180°</button>
+          ${optionsHtml}
         </div>
       </div>
     </div>
@@ -1036,8 +1116,13 @@ function renderMission2Question() {
   const optionBtns = workspace.querySelectorAll('.option-btn');
   optionBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      const chosenAngle = parseInt(btn.getAttribute('data-angle'));
-      handleMission2Answer(chosenAngle, category.angle, category.pupils, category.name);
+      const optId = btn.getAttribute('data-option-id');
+      const opt = gameState.currentOptions.find(o => o.id === optId);
+      if (opt) {
+        handleOptionClick(opt, () => {
+          handleMission2Answer(opt.angle, category.angle, category.pupils, category.name);
+        });
+      }
     });
   });
 }
@@ -1233,6 +1318,16 @@ function renderInterpretationQuestion(dataset) {
     return;
   }
 
+  if (gameState.currentOptions.length === 0) {
+    const rawOptions = interp.options.map((optLabel, idx) => ({
+      id: `interp-opt-${idx}`,
+      label: optLabel,
+      originalIndex: idx,
+      isCorrect: idx === interp.correctIndex
+    }));
+    gameState.currentOptions = shuffleArray(rawOptions);
+  }
+
   updatePIBotSpeech(`Interpretation Question ${interpIndex + 1} of ${dataset.interpretations.length}: Look closely at the restored pie chart!`, "thinking");
 
   // Build installed SVG paths
@@ -1257,12 +1352,9 @@ function renderInterpretationQuestion(dataset) {
     `;
   });
 
-  let optionsHtml = '';
-  interp.options.forEach((opt, idx) => {
-    optionsHtml += `
-      <button class="btn btn-secondary interp-opt-btn" data-opt-idx="${idx}">${opt}</button>
-    `;
-  });
+  const optionsHtml = gameState.currentOptions.map(opt => `
+    <button class="${getOptionCssClass(opt.id)} interp-opt-btn" data-option-id="${opt.id}">${opt.label}</button>
+  `).join('');
 
   workspace.innerHTML = `
     <div class="interp-container">
@@ -1298,8 +1390,13 @@ function renderInterpretationQuestion(dataset) {
   const optBtns = workspace.querySelectorAll('.interp-opt-btn');
   optBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      const idx = parseInt(btn.getAttribute('data-opt-idx'));
-      handleInterpretationAnswer(idx, interp.correctIndex, interp.explanation);
+      const optId = btn.getAttribute('data-option-id');
+      const opt = gameState.currentOptions.find(o => o.id === optId);
+      if (opt) {
+        handleOptionClick(opt, () => {
+          handleInterpretationAnswer(opt.originalIndex, interp.correctIndex, interp.explanation);
+        });
+      }
     });
   });
 }
@@ -1359,7 +1456,20 @@ function renderM4Phase1() {
   const workspace = document.getElementById('mission-workspace');
   if (!workspace) return;
 
+  if (gameState.currentOptions.length === 0) {
+    const rawOptions = [
+      { id: 'm4p1-1', label: '1 pupil', val: 1, isCorrect: false },
+      { id: 'm4p1-2', label: '2 pupils', val: 2, isCorrect: true },
+      { id: 'm4p1-4', label: '4 pupils', val: 4, isCorrect: false }
+    ];
+    gameState.currentOptions = shuffleArray(rawOptions);
+  }
+
   updatePIBotSpeech("PHASE 1: Calculate the missing pupil quantity in the survey table!", "thinking");
+
+  const optionsHtml = gameState.currentOptions.map(opt => `
+    <button class="${getOptionCssClass(opt.id)}" data-option-id="${opt.id}">${opt.label}</button>
+  `).join('');
 
   workspace.innerHTML = `
     <div class="challenge-container">
@@ -1379,30 +1489,33 @@ function renderM4Phase1() {
         <p style="font-size:1.05rem; color:white; margin-bottom:14px;">How many pupils are in the <strong>Art Club</strong>?</p>
 
         <div class="btn-options-grid">
-          <button class="btn btn-secondary m4-p1-btn" data-val="1">1 pupil</button>
-          <button class="btn btn-secondary m4-p1-btn" data-val="2">2 pupils</button>
-          <button class="btn btn-secondary m4-p1-btn" data-val="4">4 pupils</button>
+          ${optionsHtml}
         </div>
       </div>
     </div>
   `;
 
-  const btns = workspace.querySelectorAll('.m4-p1-btn');
+  const btns = workspace.querySelectorAll('.option-btn');
   btns.forEach(btn => {
     btn.addEventListener('click', () => {
-      const val = parseInt(btn.getAttribute('data-val'));
-      if (val === 2) {
-        sounds.playCorrect();
-        const pts = gameState.attemptedThisQuestion ? 5 : 10;
-        gameState.score += pts;
-        gameState.totalCorrect += 1;
-        updateUI();
-        showFeedback(true, "✓ Phase 1 Clear!", "Excellent deduction! 16 - (8 + 4 + 2) = 2 pupils for Art Club (45° sector)!");
-      } else {
-        deductLife();
-        gameState.attemptedThisQuestion = true;
-        updatePIBotSpeech("Subtract the known club quantities (8 + 4 + 2 = 14) from the total 16 pupils!", "concerned");
-        showFeedback(false, "✕ Try Again!", "Total = 16 pupils. 8 + 4 + 2 = 14 pupils. 16 - 14 = 2 pupils!");
+      const optId = btn.getAttribute('data-option-id');
+      const opt = gameState.currentOptions.find(o => o.id === optId);
+      if (opt) {
+        handleOptionClick(opt, (isCorrect) => {
+          if (isCorrect) {
+            sounds.playCorrect();
+            const pts = gameState.attemptedThisQuestion ? 5 : 10;
+            gameState.score += pts;
+            gameState.totalCorrect += 1;
+            updateUI();
+            showFeedback(true, "✓ Phase 1 Clear!", "Excellent deduction! 16 - (8 + 4 + 2) = 2 pupils for Art Club (45° sector)!");
+          } else {
+            deductLife();
+            gameState.attemptedThisQuestion = true;
+            updatePIBotSpeech("Subtract the known club quantities (8 + 4 + 2 = 14) from the total 16 pupils!", "concerned");
+            showFeedback(false, "✕ Try Again!", "Total = 16 pupils. 8 + 4 + 2 = 14 pupils. 16 - 14 = 2 pupils!");
+          }
+        });
       }
     });
   });
@@ -1413,7 +1526,20 @@ function renderM4Phase2() {
   const workspace = document.getElementById('mission-workspace');
   if (!workspace) return;
 
+  if (gameState.currentOptions.length === 0) {
+    const rawOptions = [
+      { id: 'm4p2-1', label: '1 pupil', val: 1, isCorrect: false },
+      { id: 'm4p2-2', label: '2 pupils', val: 2, isCorrect: true },
+      { id: 'm4p2-4', label: '4 pupils', val: 4, isCorrect: false }
+    ];
+    gameState.currentOptions = shuffleArray(rawOptions);
+  }
+
   updatePIBotSpeech("PHASE 2: Reverse Reasoning! Look at the sector angle to recover the pupil quantity!", "thinking");
+
+  const optionsHtml = gameState.currentOptions.map(opt => `
+    <button class="${getOptionCssClass(opt.id)}" data-option-id="${opt.id}">${opt.label}</button>
+  `).join('');
 
   workspace.innerHTML = `
     <div class="challenge-container">
@@ -1433,30 +1559,33 @@ function renderM4Phase2() {
         <p style="font-size:1.1rem; color:white; margin-bottom:14px;">This sector represents <strong>90°</strong>. How many pupils does it represent?</p>
 
         <div class="btn-options-grid">
-          <button class="btn btn-secondary m4-p2-btn" data-val="1">1 pupil</button>
-          <button class="btn btn-secondary m4-p2-btn" data-val="2">2 pupils</button>
-          <button class="btn btn-secondary m4-p2-btn" data-val="4">4 pupils</button>
+          ${optionsHtml}
         </div>
       </div>
     </div>
   `;
 
-  const btns = workspace.querySelectorAll('.m4-p2-btn');
+  const btns = workspace.querySelectorAll('.option-btn');
   btns.forEach(btn => {
     btn.addEventListener('click', () => {
-      const val = parseInt(btn.getAttribute('data-val'));
-      if (val === 2) {
-        sounds.playCorrect();
-        const pts = gameState.attemptedThisQuestion ? 5 : 10;
-        gameState.score += pts;
-        gameState.totalCorrect += 1;
-        updateUI();
-        showFeedback(true, "✓ Phase 2 Clear!", "Spot on! 90° is 1/4 of 360°. One quarter of 8 pupils = 2 pupils!");
-      } else {
-        deductLife();
-        gameState.attemptedThisQuestion = true;
-        updatePIBotSpeech("90° is a quarter circle (1/4). What is 1/4 of 8 pupils?", "concerned");
-        showFeedback(false, "✕ Try Again!", "90° represents 1/4 of the total circle. 8 pupils ÷ 4 = 2 pupils.");
+      const optId = btn.getAttribute('data-option-id');
+      const opt = gameState.currentOptions.find(o => o.id === optId);
+      if (opt) {
+        handleOptionClick(opt, (isCorrect) => {
+          if (isCorrect) {
+            sounds.playCorrect();
+            const pts = gameState.attemptedThisQuestion ? 5 : 10;
+            gameState.score += pts;
+            gameState.totalCorrect += 1;
+            updateUI();
+            showFeedback(true, "✓ Phase 2 Clear!", "Spot on! 90° is 1/4 of 360°. One quarter of 8 pupils = 2 pupils!");
+          } else {
+            deductLife();
+            gameState.attemptedThisQuestion = true;
+            updatePIBotSpeech("90° is a quarter circle (1/4). What is 1/4 of 8 pupils?", "concerned");
+            showFeedback(false, "✕ Try Again!", "90° represents 1/4 of the total circle. 8 pupils ÷ 4 = 2 pupils.");
+          }
+        });
       }
     });
   });
@@ -1467,7 +1596,20 @@ function renderM4Phase3() {
   const workspace = document.getElementById('mission-workspace');
   if (!workspace) return;
 
-  updatePIBotSpeech("PHASE 3: Corrupted Data Detected! Identify and repair the corrupted 90° error!", "thinking");
+  if (gameState.currentOptions.length === 0) {
+    const rawOptions = [
+      { id: 'm4p3-45', label: 'Set Science sector to 45°', isCorrect: false },
+      { id: 'm4p3-90', label: 'Set Science sector to 90°', isCorrect: true },
+      { id: 'm4p3-180', label: 'Set Science sector to 180°', isCorrect: false }
+    ];
+    gameState.currentOptions = shuffleArray(rawOptions);
+  }
+
+  updatePIBotSpeech("PHASE 3: Corrupted Data Detected! Identify and repair the corrupted sector angle!", "thinking");
+
+  const optionsHtml = gameState.currentOptions.map(opt => `
+    <button class="${getOptionCssClass(opt.id)}" data-option-id="${opt.id}">${opt.label}</button>
+  `).join('');
 
   workspace.innerHTML = `
     <div class="challenge-container">
@@ -1478,7 +1620,7 @@ function renderM4Phase3() {
         <p class="data-summary">Dataset: Favourite School Subjects (8 Pupils Total)</p>
 
         <div style="background:#0f172a; border:1px solid #ef4444; border-radius:12px; padding:16px; margin:14px 0;">
-          <p style="color:#fca5a5; font-size:0.9rem; margin-bottom:10px;">Corrupted Status: Science sector is mislabelled as 45° instead of 90°!</p>
+          <p style="color:#fca5a5; font-size:0.9rem; margin-bottom:10px;">The Science sector has been corrupted. Inspect the data and repair the chart.</p>
 
           <div style="display:flex; justify-content:center; gap:20px; align-items:center; flex-wrap:wrap;">
             <svg viewBox="0 0 200 200" style="width:160px; height:160px;">
@@ -1489,42 +1631,45 @@ function renderM4Phase3() {
             </svg>
 
             <div style="text-align:left; font-size:0.85rem; color:#cbd5e1;">
-              <p>🟦 Mathematics: 4 pupils (180°)</p>
-              <p style="color:#f87171;">🟩 Science: 2 pupils (Mislabeled 45°)</p>
-              <p>🟨 English: 1 pupil (45°)</p>
-              <p>🟪 Art: 1 pupil (45°)</p>
+              <p>🟦 Mathematics = 4 pupils</p>
+              <p style="color:#4ade80;">🟩 Science = 2 pupils</p>
+              <p>🟨 English = 1 pupil</p>
+              <p>🟪 Art = 1 pupil</p>
             </div>
           </div>
         </div>
 
-        <p style="font-size:1rem; color:white; margin-bottom:14px;">Select the correct repair action for Science (2 pupils):</p>
+        <p style="font-size:1rem; color:white; margin-bottom:14px;">What should the Science sector angle be?</p>
 
         <div class="btn-options-grid vertical">
-          <button class="btn btn-secondary m4-p3-btn" data-choice="wrong1">Change Science to 45°</button>
-          <button class="btn btn-success m4-p3-btn" data-choice="correct">REPAIR: Change Science sector label to 90°</button>
-          <button class="btn btn-secondary m4-p3-btn" data-choice="wrong2">Change Science to 180°</button>
+          ${optionsHtml}
         </div>
       </div>
     </div>
   `;
 
-  const btns = workspace.querySelectorAll('.m4-p3-btn');
+  const btns = workspace.querySelectorAll('.option-btn');
   btns.forEach(btn => {
     btn.addEventListener('click', () => {
-      const choice = btn.getAttribute('data-choice');
-      if (choice === 'correct') {
-        sounds.playCorrect();
-        const pts = gameState.attemptedThisQuestion ? 5 : 10;
-        gameState.score += pts;
-        gameState.completedCharts += 1;
-        gameState.totalCorrect += 1;
-        updateUI();
-        showFeedback(true, "✓ Phase 3 System Repaired!", "Great diagnostic work! 2 pupils out of 8 represent exactly 90° (1/4 of 360°)!");
-      } else {
-        deductLife();
-        gameState.attemptedThisQuestion = true;
-        updatePIBotSpeech("Science has 2 pupils. 2/8 = 1/4 of 360° = 90°!", "concerned");
-        showFeedback(false, "✕ Try Again!", "Science represents 2 out of 8 pupils. 2 × 45° = 90°.");
+      const optId = btn.getAttribute('data-option-id');
+      const opt = gameState.currentOptions.find(o => o.id === optId);
+      if (opt) {
+        handleOptionClick(opt, (isCorrect) => {
+          if (isCorrect) {
+            sounds.playCorrect();
+            const pts = gameState.attemptedThisQuestion ? 5 : 10;
+            gameState.score += pts;
+            gameState.completedCharts += 1;
+            gameState.totalCorrect += 1;
+            updateUI();
+            showFeedback(true, "✓ Phase 3 System Repaired!", "Great diagnostic work! 2 pupils out of 8 represent exactly 90° (1/4 of 360°)!");
+          } else {
+            deductLife();
+            gameState.attemptedThisQuestion = true;
+            updatePIBotSpeech("Science has 2 pupils. 2/8 = 1/4 of 360° = 90°!", "concerned");
+            showFeedback(false, "✕ Try Again!", "Science represents 2 out of 8 pupils. 2 × 45° = 90°.");
+          }
+        });
       }
     });
   });
@@ -1535,48 +1680,78 @@ function renderM4Phase4() {
   const workspace = document.getElementById('mission-workspace');
   if (!workspace) return;
 
+  if (gameState.currentOptions.length === 0) {
+    const rawOptions = [
+      { id: 'm4p4-ms', label: 'Mathematics and Science', isCorrect: false },
+      { id: 'm4p4-ea', label: 'English and Art', isCorrect: false },
+      { id: 'm4p4-se', label: 'Science and English', isCorrect: true },
+      { id: 'm4p4-ma', label: 'Mathematics and Art', isCorrect: false }
+    ];
+    gameState.currentOptions = shuffleArray(rawOptions);
+  }
+
   updatePIBotSpeech("PHASE 4: Final Data Detective! Answer the advanced interpretation question!", "thinking");
+
+  const optionsHtml = gameState.currentOptions.map(opt => `
+    <button class="${getOptionCssClass(opt.id)}" data-option-id="${opt.id}">${opt.label}</button>
+  `).join('');
 
   workspace.innerHTML = `
     <div class="challenge-container">
       ${renderCoreEnergyMeter()}
 
-      <div class="decoder-card" style="max-width:580px;">
+      <div class="decoder-card" style="max-width:620px;">
         <h3 style="color:#fbbf24; margin-bottom:8px;">🕵️ Final Data Detective</h3>
         <p class="data-summary">Fully Repaired 360° Core Pie Chart</p>
 
-        <div style="background:#0f172a; border:1px solid #38bdf8; border-radius:12px; padding:14px; margin:12px 0;">
-          <p style="color:#e2e8f0; font-size:0.95rem; margin-bottom:8px;">Which two subject categories together form exactly <strong>135°</strong>?</p>
-          <p style="font-size:0.8rem; color:#94a3b8;">(Hint: Science = 90°, English = 45°, Art = 45°)</p>
+        <div style="background:#0f172a; border:1px solid #38bdf8; border-radius:12px; padding:16px; margin:14px 0; display:flex; gap:20px; align-items:center; justify-content:center; flex-wrap:wrap;">
+          <svg viewBox="0 0 200 200" style="width:160px; height:160px;">
+            <path d="${getPieSlicePath(100, 100, 80, 0, 180)}" fill="#2563eb" stroke="#ffffff" stroke-width="2"/>
+            <path d="${getPieSlicePath(100, 100, 80, 180, 270)}" fill="#059669" stroke="#ffffff" stroke-width="2"/>
+            <path d="${getPieSlicePath(100, 100, 80, 270, 315)}" fill="#d97706" stroke="#ffffff" stroke-width="2"/>
+            <path d="${getPieSlicePath(100, 100, 80, 315, 360)}" fill="#9333ea" stroke="#ffffff" stroke-width="2"/>
+          </svg>
+
+          <div style="text-align:left; font-size:0.85rem; color:#cbd5e1;">
+            <p>🟦 Mathematics = 4 pupils (180°)</p>
+            <p>🟩 Science = 2 pupils (90°)</p>
+            <p>🟨 English = 1 pupil (45°)</p>
+            <p>🟪 Art = 1 pupil (45°)</p>
+          </div>
         </div>
 
+        <p style="font-size:1.05rem; color:white; margin-bottom:14px;">Which two subject categories together form exactly <strong>135°</strong>?</p>
+
         <div class="btn-options-grid vertical">
-          <button class="btn btn-secondary m4-p4-btn" data-val="wrong1">Mathematics & Science (180° + 90° = 270°)</button>
-          <button class="btn btn-secondary m4-p4-btn" data-val="wrong2">English & Art (45° + 45° = 90°)</button>
-          <button class="btn btn-success m4-p4-btn" data-val="correct">Science & English / Art (90° + 45° = 135°)</button>
+          ${optionsHtml}
         </div>
       </div>
     </div>
   `;
 
-  const btns = workspace.querySelectorAll('.m4-p4-btn');
+  const btns = workspace.querySelectorAll('.option-btn');
   btns.forEach(btn => {
     btn.addEventListener('click', () => {
-      const val = btn.getAttribute('data-val');
-      if (val === 'correct') {
-        sounds.playCorrect();
-        const pts = gameState.attemptedThisQuestion ? 5 : 10;
-        gameState.score += pts;
-        gameState.interpretationScore += 1;
-        gameState.totalCorrect += 1;
-        updateUI();
+      const optId = btn.getAttribute('data-option-id');
+      const opt = gameState.currentOptions.find(o => o.id === optId);
+      if (opt) {
+        handleOptionClick(opt, (isCorrect) => {
+          if (isCorrect) {
+            sounds.playCorrect();
+            const pts = gameState.attemptedThisQuestion ? 5 : 10;
+            gameState.score += pts;
+            gameState.interpretationScore += 1;
+            gameState.totalCorrect += 1;
+            updateUI();
 
-        showFeedback(true, "⚡ 360° CORE RESTORED!", "MATH CITY IS SAVED! Science (90°) + English/Art (45°) = 135°!");
-      } else {
-        deductLife();
-        gameState.attemptedThisQuestion = true;
-        updatePIBotSpeech("Look for a 90° sector and a 45° sector: 90° + 45° = 135°!", "concerned");
-        showFeedback(false, "✕ Try Again!", "Science (90°) plus English (45°) equals 135°.");
+            showFeedback(true, "⚡ 360° CORE RESTORED!", "MATH CITY IS SAVED! Science (90°) + English (45°) = 135°!");
+          } else {
+            deductLife();
+            gameState.attemptedThisQuestion = true;
+            updatePIBotSpeech("Look for a 90° sector and a 45° sector: 90° + 45° = 135°!", "concerned");
+            showFeedback(false, "✕ Try Again!", "Science (90°) plus English (45°) equals 135°.");
+          }
+        });
       }
     });
   });
@@ -1673,10 +1848,14 @@ function showFeedback(isCorrect, title, message) {
 function advanceQuestion() {
   if (gameState.lives <= 0) return;
 
+  gameState.selectedOptionId = null;
+  gameState.selectedWasCorrect = false;
+
   if (gameState.lastAnswerWasCorrect) {
     gameState.currentQuestionIndex += 1;
     gameState.attemptedThisQuestion = false;
     gameState.currentHintTier = 0;
+    gameState.currentOptions = []; // Clear options for new question
 
     if (gameState.currentMission === 4) {
       gameState.m4Phase += 1;
@@ -1692,7 +1871,7 @@ function advanceQuestion() {
       loadMission4();
     }
   } else {
-    // Retry same question
+    // Retry same question (keep currentOptions so options stay stable, but selectedOptionId is cleared)
     if (gameState.currentMission === 1) {
       renderMission1Question();
     } else if (gameState.currentMission === 2) {
@@ -1735,16 +1914,24 @@ function completeMission(missionNum) {
 
 function showHint() {
   gameState.hintsUsed += 1;
-  gameState.currentHintTier = Math.min(4, gameState.currentHintTier + 1);
+  gameState.currentHintTier = Math.min(3, gameState.currentHintTier + 1);
 
-  const hints = [
-    "What is the total quantity of pupils in the survey? (Total = 8)",
+  let hints = [
+    "What is the total quantity of pupils in the survey?",
     "A complete circle is equal to 360°.",
-    "Divide 360° by the total quantity: 360° ÷ 8 = 45° per pupil.",
-    "Multiply the value of one unit (45°) by the quantity in the category!"
+    "Divide 360° by the total quantity to find the value of one unit.",
+    "Multiply the value of one unit by the quantity in the category!"
   ];
 
-  const hintText = hints[gameState.currentHintTier - 1] || hints[3];
+  if (gameState.currentMission === 4 && gameState.m4Phase === 4) {
+    hints = [
+      "Look at the angles represented by each subject category.",
+      "Find two sectors whose angles add up to 135°.",
+      "Remember: 135° can be formed using 90° and 45°."
+    ];
+  }
+
+  const hintText = hints[gameState.currentHintTier - 1] || hints[hints.length - 1];
   updatePIBotSpeech(`💡 Hint ${gameState.currentHintTier}: ${hintText}`, "thinking");
 }
 

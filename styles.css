@@ -760,6 +760,24 @@ body {
 .option-btn {
   font-size: 1.1rem;
   padding: 12px;
+  background: linear-gradient(135deg, var(--secondary), var(--secondary-dark));
+  color: white;
+  border: 1px solid #94a3b8;
+  transition: all 0.2s ease;
+}
+
+.option-btn.incorrect-selected {
+  background: linear-gradient(135deg, var(--danger), var(--danger-dark)) !important;
+  color: white !important;
+  border: 2px solid #f87171 !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5) !important;
+}
+
+.option-btn.correct-selected {
+  background: linear-gradient(135deg, var(--success), var(--success-dark)) !important;
+  color: white !important;
+  border: 2px solid #4ade80 !important;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.5) !important;
 }
 
 /* Mission 2 Decoder Cards */
